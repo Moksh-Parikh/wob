@@ -38,6 +38,7 @@ rt = cc.find_library('rt')
 libm = cc.find_library('m')
 seccomp = dependency('libseccomp', required: get_option('seccomp'))
 inih = dependency('inih')
+freetype2 = dependency('freetype2', required: get_option('text'))
 
 sysconfdir = get_option('sysconfdir')
 if not fs.is_absolute(sysconfdir)
@@ -87,11 +88,19 @@ endforeach
 
 wob_sources = ['src/main.c', 'src/image.c', 'src/log.c', 'src/color.c', 'src/config.c', 'src/wob.c', 'src/shm.c', wl_proto_src, wl_proto_headers]
 wob_dependencies = [wayland_client, rt, inih, libm]
+
 if seccomp.found()
   wob_dependencies += seccomp
   wob_sources += 'src/pledge_seccomp.c'
 else
   wob_sources += 'src/pledge.c'
+endif
+
+if freetype2.found()
+  wob_dependencies += freetype2
+  wob_sources += 'src/font_freetype.c'
+else
+  wob_sources += 'src/font_stub.c'
 endif
 
 executable(
