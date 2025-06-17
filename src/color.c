@@ -89,22 +89,36 @@ bool
 wob_color_from_rgba_string(const char *str, struct wob_color *color)
 {
 	unsigned long length = strlen(str);
-	for (const char *c = str; *c != '\0'; ++c) {
-		if (!isxdigit(*c)) {
-			return false;
-		}
-	}
 
 	uint8_t parts[4];
 	parts[3] = 0xFF;
 	switch (length) {
 		case 8:
-			parts[3] = hex_to_int(str[6]) * 16 + hex_to_int(str[7]);
+			int p6 = hex_to_int(str[6]);
+			int p7 = hex_to_int(str[7]);
+
+			if (p6 < 0 || p7 < 0) {
+				return false;
+			}
+
+			parts[3] = p6 * 16 + p7;
 			// fallthrough
 		case 6:
-			parts[0] = hex_to_int(str[0]) * 16 + hex_to_int(str[1]);
-			parts[1] = hex_to_int(str[2]) * 16 + hex_to_int(str[3]);
-			parts[2] = hex_to_int(str[4]) * 16 + hex_to_int(str[5]);
+			int p0 = hex_to_int(str[0]);
+			int p1 = hex_to_int(str[1]);
+			int p2 = hex_to_int(str[2]);
+			int p3 = hex_to_int(str[3]);
+			int p4 = hex_to_int(str[4]);
+			int p5 = hex_to_int(str[5]);
+
+			if (p0 < 0 || p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0) {
+				return false;
+			}
+
+			parts[0] = p0 * 16 + p1;
+			parts[1] = p2 * 16 + p3;
+			parts[2] = p4 * 16 + p5;
+
 			break;
 		default:
 			return false;

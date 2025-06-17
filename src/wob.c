@@ -43,6 +43,7 @@ struct wob_surface {
 	double desired_percentage;
 	struct wob_colors desired_colors;
 	struct wob_font *desired_font;
+	unsigned long desired_font_size;
 };
 
 struct wob_output {
@@ -170,7 +171,7 @@ layer_surface_configure(void *data, struct zwlr_layer_surface_v1 *zwlr_surface, 
 
 		// redraw only if we have dimensions set, otherwise keep the transparent pixel
 		if (surface->dimensions.height != 1 || surface->dimensions.width != 1) {
-			wob_image_draw(surface->wob_buffer->shm_data, surface->wob_buffer->dimensions, surface->desired_colors, surface->desired_percentage, surface->desired_font);
+			wob_image_draw(surface->wob_buffer->shm_data, surface->wob_buffer->dimensions, surface->desired_colors, surface->desired_percentage, surface->desired_font, surface->desired_font_size);
 		}
 
 		if (surface->wp_viewport != NULL) {
@@ -200,20 +201,23 @@ layer_surface_enter(void *data, struct wl_surface *wl_surface, struct wl_output 
 	struct wob_margin margin = app->config->margin;
 	struct wob_dimensions dimensions = app->config->dimensions;
 	enum wob_anchor anchor = app->config->anchor;
+	unsigned long font_size = app->config->font_size;
 
 	// try to match output config
 	struct wob_output_config *output_config = NULL;
 	if (selected_output->name != NULL) {
 		output_config = wob_config_match_output(app->config, selected_output->name);
 	}
-	if (output_config != NULL && selected_output->description != NULL) {
+	if (output_config == NULL && selected_output->description != NULL) {
 		output_config = wob_config_match_output(app->config, selected_output->description);
 	}
 
 	if (output_config != NULL) {
+		wob_log_debug("selected output %s", output_config->id);
 		margin = output_config->margin;
 		dimensions = output_config->dimensions;
 		anchor = output_config->anchor;
+		font_size = output_config->font_size;
 	}
 
 	struct wob_surface *surface = app->surface;
@@ -223,6 +227,7 @@ layer_surface_enter(void *data, struct wl_surface *wl_surface, struct wl_output 
 		zwlr_layer_surface_v1_set_size(surface->wlr_layer_surface, dimensions.width, dimensions.height);
 
 		surface->dimensions = dimensions;
+		surface->desired_font_size = font_size;
 		wl_surface_commit(surface->wl_surface);
 	}
 
@@ -318,6 +323,10 @@ wob_create_surface(struct wob *app)
 		.anchor = 0,
 		.wp_viewport = wp_viewport,
 		.fractional = wp_fractional,
+		.desired_colors = (struct wob_color) {.a = 0, .r = 0, .g = 0, .b = 0},
+		.desired_percentage = 0,
+		.desired_font = NULL,
+		.desired_font_size = 0,
 	};
 
 	wl_surface_commit(wl_surface);
@@ -335,7 +344,7 @@ wl_surface_frame_done(void *data, struct wl_callback *cb, uint32_t time)
 	struct wob_surface *surface = data;
 	wob_log_debug("rendering frame");
 
-	wob_image_draw(surface->wob_buffer->shm_data, surface->wob_buffer->dimensions, surface->desired_colors, surface->desired_percentage, surface->desired_font);
+	wob_image_draw(surface->wob_buffer->shm_data, surface->wob_buffer->dimensions, surface->desired_colors, surface->desired_percentage, surface->desired_font, surface->desired_font_size);
 
 	wl_surface_attach(surface->wl_surface, surface->wob_buffer->wl_buffer, 0, 0);
 	wl_surface_damage_buffer(surface->wl_surface, 0, 0, INT32_MAX, INT32_MAX);
@@ -685,7 +694,7 @@ wob_run(struct wob_config *config, struct wob_font_manager *font_manager)
 					state->surface->desired_colors = effective_colors;
 					state->surface->desired_percentage = (double) percentage / (double) state->config->max;
 
-					struct wob_font *font = wob_font_manager_get(font_manager, selected_style->font_path);
+					struct wob_font *font = wob_font_manager_get(font_manager, config->font_path);
 					state->surface->desired_font = font;
 
 					wl_display_flush(wl_display);
