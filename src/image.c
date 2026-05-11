@@ -68,11 +68,16 @@ wob_image_draw(uint32_t *image_data, struct wob_dimensions dimensions, struct wo
 		return;
 	}
 
-	size_t font_padding = font_size / 4;
+	size_t font_padding = font_size / 2;
 
+    // char icon_buff[10] = {0}; // 󰃠
 	char percentage_buff[64] = {0};
-	snprintf(percentage_buff, 64, "%d", (int) (percentage * 100));
-	struct wob_font_text_dimensions text_dimensions = wob_font_render_text_dimensions(font, percentage_buff, font_size);
+	snprintf(percentage_buff, 64, "󰃠%d", (int) (percentage * 100));
+	
+    hb_glyph_info_t *glyph_info;
+    unsigned int glyph_count = wob_init_font_and_buffer(font, percentage_buff, font_size, &glyph_info);
+
+    struct wob_font_text_dimensions text_dimensions = wob_font_render_text_dimensions(font, glyph_count, glyph_info);
 	wob_log_debug("declared font height %d, rendered text width: %d x %d\n", font_size, text_dimensions.w, text_dimensions.h);
 
 	const uint32_t width_needed_for_text = text_dimensions.w + 2 * font_padding;
@@ -118,5 +123,6 @@ wob_image_draw(uint32_t *image_data, struct wob_dimensions dimensions, struct wo
 			break;
 	}
 
-	wob_font_render_text(font, percentage_buff, font_size, font_color, data, stride);
+// percentage_buff
+	wob_font_render_text(font, glyph_count, glyph_info, font_color, data, stride);
 }

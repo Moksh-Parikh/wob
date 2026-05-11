@@ -1,3 +1,9 @@
+#include <harfbuzz/hb.h>
+#include <harfbuzz/hb-ft.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #define WOB_FILE "font_freetype.c"
 
 #include "font.h"
@@ -13,6 +19,8 @@ FT_Library library;
 struct wob_font {
 	char *name;
 	FT_Face data;
+    hb_glyph_info_t *glyph_info;
+    unsigned int glyph_count;
 	struct wl_list link;
 };
 
@@ -98,19 +106,56 @@ wob_font_manager_get(struct wob_font_manager *manager, const char *fpath)
 	return NULL;
 }
 
+// void wob_init_font_and_buffers(struct wob_font *font, int font_size, char** textBuffers, int number_of_bufs, hb_buffer_t ***buffer_out, unsigned int** glyph_count_arr, hb_glyph_info_t*** glyph_info_arr) {
+// 	FT_Face ft_face = font->data;
+// 	FT_Set_Pixel_Sizes(ft_face, 0, font_size);
+//     hb_font_t *hb_font = hb_ft_font_create(ft_face, NULL);
+
+//     hb_buffer_t **buffer_array = calloc(number_of_bufs, sizeof(hb_buffer_t *));
+//     hb_glyph_info_t **glyph_info = calloc(number_of_bufs, sizeof(hb_glyph_info_t *));
+//     unsigned int* glyph_count = calloc(number_of_bufs, sizeof(unsigned int));
+
+//     for (int i = 0; i < number_of_bufs; i++) {
+//         wob_init_font_and_buffer(hb_font, textBuffers[i], font_size, &glyph_info[i], &buffer_array[i]);
+//     }
+
+//     *glyph_count_arr = glyph_count;
+//     *glyph_info_arr = glyph_info;
+//     *buffer_out = buffer_array;
+// }
+
+unsigned int wob_init_font_and_buffer(struct wob_font *font, char* text, int font_size, hb_glyph_info_t** glyph_info_out) {
+	FT_Face ft_face = font->data;
+	FT_Set_Pixel_Sizes(ft_face, 0, font_size);
+    hb_font_t *hb_font = hb_ft_font_create(ft_face, NULL);
+    hb_buffer_t *buf = hb_buffer_create();
+
+    hb_buffer_add_utf8(buf, text, -1, 0, -1);
+    hb_buffer_guess_segment_properties(buf);
+
+    hb_shape(hb_font, buf, NULL, 0);
+    
+    unsigned int glyph_count;
+    hb_glyph_info_t *glyph_info =
+        hb_buffer_get_glyph_infos(buf, &glyph_count);
+
+    *glyph_info_out = glyph_info;
+
+    return glyph_count;
+}
+
 struct wob_font_text_dimensions
-wob_font_render_text_dimensions(struct wob_font *font, char *text, int font_size)
+wob_font_render_text_dimensions(struct wob_font *font, unsigned int glyph_count, hb_glyph_info_t *glyph_info)
 {
 	struct wob_font_text_dimensions dimensions = {.h = 0, .w = 0};
 
-	FT_Face ft_face = font->data;
-	FT_Set_Pixel_Sizes(ft_face, 0, font_size);
 	FT_UInt previous = 0;
+	FT_Face ft_face = font->data;
 
 	bool has_kerning = FT_HAS_KERNING(ft_face);
 
-	for (char *c = text; *c != '\0'; c += 1) {
-		FT_UInt glyph_index = FT_Get_Char_Index(ft_face, *c);
+	for (uint32_t i = 0; i < glyph_count; i++) {
+		FT_UInt glyph_index = glyph_info[i].codepoint;
 		FT_Load_Glyph(ft_face, glyph_index, FT_LOAD_DEFAULT);
 
 		FT_Glyph glyph;
@@ -134,20 +179,18 @@ wob_font_render_text_dimensions(struct wob_font *font, char *text, int font_size
 	return dimensions;
 }
 
-void
-wob_font_render_text(struct wob_font *font, char *text, int font_size, struct wob_color font_color, uint32_t *argb8888_buffer, size_t argb8888_buffer_size)
+
+void wob_font_render_text(struct wob_font *font, unsigned int glyph_count, hb_glyph_info_t *glyph_info, struct wob_color font_color, uint32_t *argb8888_buffer, size_t argb8888_buffer_size)
 {
-	FT_Face ft_face = font->data;
 	FT_UInt previous = 0;
-	FT_Set_Pixel_Sizes(ft_face, 0, font_size);
+	FT_Face ft_face = font->data;
 
 	bool has_kerning = FT_HAS_KERNING(ft_face);
 
-	for (const char *c = text; *c != '\0'; c += 1) {
+	for (uint32_t i = 0; (uint32_t)i < glyph_count; i++) {
 		FT_Vector delta;
-		FT_UInt glyph_index = FT_Get_Char_Index(ft_face, *c);
-		FT_Load_Glyph(ft_face, glyph_index, FT_LOAD_DEFAULT);
-		FT_Render_Glyph(ft_face->glyph, FT_RENDER_MODE_NORMAL);
+		FT_UInt glyph_index = glyph_info[i].codepoint;
+		FT_Load_Glyph(ft_face, glyph_index, FT_LOAD_RENDER);
 
 		draw_glyph(argb8888_buffer, argb8888_buffer_size, &ft_face->glyph->bitmap, font_color);
 

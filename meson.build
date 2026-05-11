@@ -38,6 +38,7 @@ rt = cc.find_library('rt')
 libm = cc.find_library('m')
 seccomp = dependency('libseccomp', required: get_option('seccomp'))
 inih = dependency('inih')
+harfbuzz = dependency('harfbuzz')
 freetype2 = dependency('freetype2', required: get_option('text'))
 
 sysconfdir = get_option('sysconfdir')
@@ -97,8 +98,9 @@ else
   global_configuration_h.set('WOB_PLEDGE_ENABLED', 'false')
 endif
 
-if freetype2.found()
+if freetype2.found() and harfbuzz.found()
   wob_dependencies += freetype2
+  wob_dependencies += harfbuzz
   wob_sources += 'src/font_freetype.c'
   global_configuration_h.set('WOB_TEXT_ENABLED', 'true')
 else
