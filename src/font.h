@@ -26,7 +26,9 @@ void wob_font_manager_load_fonts_from_config(struct wob_font_manager *, struct w
 
 struct wob_font *wob_font_manager_get(struct wob_font_manager *, const char *fpath);
 
-unsigned int wob_init_font_and_buffer(struct wob_font *font, char* text, int font_size, hb_glyph_info_t** glyph_info_out);
+// unsigned int wob_init_font_and_buffer(struct wob_font *font, char* text, int font_size, hb_glyph_info_t** glyph_info_out, hb_buffer_t **buffer_out);
+
+void wob_init_font_and_buffers(struct wob_font *font, int font_size, char** textBuffers, int number_of_bufs, hb_buffer_t **buffer_arr, unsigned int* glyph_count_arr, hb_glyph_info_t **glyph_info_arr);
 
 struct wob_font_text_dimensions wob_font_render_text_dimensions(struct wob_font *font, unsigned int glyph_count, hb_glyph_info_t *glyph_info);
 

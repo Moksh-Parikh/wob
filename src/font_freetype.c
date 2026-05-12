@@ -19,8 +19,6 @@ FT_Library library;
 struct wob_font {
 	char *name;
 	FT_Face data;
-    hb_glyph_info_t *glyph_info;
-    unsigned int glyph_count;
 	struct wl_list link;
 };
 
@@ -106,28 +104,7 @@ wob_font_manager_get(struct wob_font_manager *manager, const char *fpath)
 	return NULL;
 }
 
-// void wob_init_font_and_buffers(struct wob_font *font, int font_size, char** textBuffers, int number_of_bufs, hb_buffer_t ***buffer_out, unsigned int** glyph_count_arr, hb_glyph_info_t*** glyph_info_arr) {
-// 	FT_Face ft_face = font->data;
-// 	FT_Set_Pixel_Sizes(ft_face, 0, font_size);
-//     hb_font_t *hb_font = hb_ft_font_create(ft_face, NULL);
-
-//     hb_buffer_t **buffer_array = calloc(number_of_bufs, sizeof(hb_buffer_t *));
-//     hb_glyph_info_t **glyph_info = calloc(number_of_bufs, sizeof(hb_glyph_info_t *));
-//     unsigned int* glyph_count = calloc(number_of_bufs, sizeof(unsigned int));
-
-//     for (int i = 0; i < number_of_bufs; i++) {
-//         wob_init_font_and_buffer(hb_font, textBuffers[i], font_size, &glyph_info[i], &buffer_array[i]);
-//     }
-
-//     *glyph_count_arr = glyph_count;
-//     *glyph_info_arr = glyph_info;
-//     *buffer_out = buffer_array;
-// }
-
-unsigned int wob_init_font_and_buffer(struct wob_font *font, char* text, int font_size, hb_glyph_info_t** glyph_info_out) {
-	FT_Face ft_face = font->data;
-	FT_Set_Pixel_Sizes(ft_face, 0, font_size);
-    hb_font_t *hb_font = hb_ft_font_create(ft_face, NULL);
+unsigned int wob_init_buffer_and_glyphs(hb_font_t *hb_font, char* text, int font_size, hb_glyph_info_t** glyph_info_out, hb_buffer_t **buffer_out) {
     hb_buffer_t *buf = hb_buffer_create();
 
     hb_buffer_add_utf8(buf, text, -1, 0, -1);
@@ -140,8 +117,26 @@ unsigned int wob_init_font_and_buffer(struct wob_font *font, char* text, int fon
         hb_buffer_get_glyph_infos(buf, &glyph_count);
 
     *glyph_info_out = glyph_info;
+    *buffer_out = buf;
 
     return glyph_count;
+}
+
+void wob_init_font_and_buffers(struct wob_font *font,
+                               int font_size,
+                               char** textBuffers,
+                               int number_of_bufs,
+                               hb_buffer_t **buffer_arr,
+                               unsigned int* glyph_count_arr,
+                               hb_glyph_info_t **glyph_info_arr
+) {
+	FT_Face ft_face = font->data;
+	FT_Set_Pixel_Sizes(ft_face, 0, font_size);
+    hb_font_t *hb_font = hb_ft_font_create_referenced(ft_face);
+
+    for (int i = 0; i < number_of_bufs; i++) {
+        glyph_count_arr[i] = wob_init_buffer_and_glyphs(hb_font, textBuffers[i], font_size, &glyph_info_arr[i], &buffer_arr[i]);
+    }
 }
 
 struct wob_font_text_dimensions
