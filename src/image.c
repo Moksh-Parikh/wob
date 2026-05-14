@@ -1,5 +1,9 @@
 #include "hb.h"
+#include "src/color.h"
+#include "src/config.h"
 #include "src/font.h"
+#include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #define WOB_FILE "image.c"
 
@@ -19,6 +23,65 @@ fill_rectangle(uint32_t *pixels, size_t width, size_t height, size_t stride, uin
 		}
 		pixels += stride;
 	}
+}
+
+uint32_t* wob_calculate_text_data(uint32_t* image_data,
+                                  struct wob_dimensions dimensions,
+                                  struct wob_font_text_dimensions text_dimensions,
+                                  struct wob_colors colors,
+                                  double percentage,
+                                  struct wob_font *font,
+                                  uint32_t width_needed_for_text,
+                                  size_t font_padding,
+                                  uint32_t width,
+                                  uint32_t height,
+                                  size_t bar_width,
+                                  size_t bar_height,
+                                  struct wob_color* font_color
+) {
+	uint32_t stride = dimensions.width;
+    uint32_t* data = image_data;
+
+	switch (dimensions.orientation) {
+		case WOB_ORIENTATION_HORIZONTAL:
+			// get to the X position first
+			if (width_needed_for_text < width) {
+				data += width - text_dimensions.w - font_padding;
+				*font_color = colors.background;
+			}
+			else if (width_needed_for_text < bar_width) {
+				data += width + font_padding;
+				*font_color = colors.value;
+			}
+			else {
+				wob_log_warn("bar text is too big for the bar to be rendered, skipping!");
+				return NULL;
+			}
+
+			// get to the Y position
+			data += stride * ((bar_height - text_dimensions.h) / 2);
+			break;
+		case WOB_ORIENTATION_VERTICAL:
+			// get to the Y position first
+			if (width_needed_for_text < height) {
+				data += stride * font_padding;
+				*font_color = colors.background;
+			}
+			else if (width_needed_for_text < bar_height) {
+				data -= stride * (text_dimensions.h + font_padding);
+				*font_color = colors.value;
+			}
+			else {
+				wob_log_warn("bar text is too big for the bar to be rendered, skipping!");
+				return NULL;
+			}
+
+			// get to the X position
+			data += (width - text_dimensions.w) / 2;
+			break;
+	}
+
+    return data;
 }
 
 void
@@ -75,8 +138,8 @@ wob_image_draw(uint32_t *image_data, struct wob_dimensions dimensions, struct wo
 
 	size_t font_padding = font_size / 2;
 
-	char percentage_buff[64] = {0};
-	snprintf(percentage_buff, 64, "󰃠%d", (int) (percentage * 100));
+	char percentage_buff[64] = {0}; // 󰃠
+	snprintf(percentage_buff, 64, "%d", (int) (percentage * 100));
     
     char icon_buff[10] = {0};
 
@@ -92,54 +155,29 @@ wob_image_draw(uint32_t *image_data, struct wob_dimensions dimensions, struct wo
 
     struct wob_font_text_dimensions text_dimensions = wob_font_render_text_dimensions(font, glyph_count_arr[0], glyph_info[0]);
 
-	printf("declared font height %lu, rendered text width: %d x %d\n", font_size, text_dimensions.w, text_dimensions.h);
+	wob_log_debug("declared font height %lu, rendered text width: %d x %d\n", font_size, text_dimensions.w, text_dimensions.h);
 
 	const uint32_t width_needed_for_text = text_dimensions.w + 2 * font_padding;
 	struct wob_color font_color;
 
 	// data is positing to the beginning of TOP LEFT corner of rendered block
-	switch (dimensions.orientation) {
-		case WOB_ORIENTATION_HORIZONTAL:
-			// get to the X position first
-			if (width_needed_for_text < width) {
-				data += width - text_dimensions.w - font_padding;
-				font_color = colors.background;
-			}
-			else if (width_needed_for_text < bar_width) {
-				data += width + font_padding;
-				font_color = colors.value;
-			}
-			else {
-				wob_log_warn("bar text is too big for the bar to be rendered, skipping!");
-				return;
-			}
+    data = wob_calculate_text_data(data, 
+                                    dimensions,
+                                    text_dimensions,
+                                    colors,
+                                    percentage,
+                                    font,
+                                    width_needed_for_text,
+                                    font_padding,
+                                    width, height,
+                                    bar_width, bar_height,
+                                    &font_color
+                                  );
 
-			// get to the Y position
-			data += stride * ((bar_height - text_dimensions.h) / 2);
-			break;
-		case WOB_ORIENTATION_VERTICAL:
-			// get to the Y position first
-			if (width_needed_for_text < height) {
-				data += stride * font_padding;
-				font_color = colors.background;
-			}
-			else if (width_needed_for_text < bar_height) {
-				data -= stride * (text_dimensions.h + font_padding);
-				font_color = colors.value;
-			}
-			else {
-				wob_log_warn("bar text is too big for the bar to be rendered, skipping!");
-				return;
-			}
+    if (data != NULL) {
+        wob_font_render_text(font, glyph_count_arr[0], glyph_info[0], font_color, data, stride);
+    }
 
-			// get to the X position
-			data += (width - text_dimensions.w) / 2;
-			break;
-	}
-
-// percentage_buff
-	wob_font_render_text(font, glyph_count_arr[0], glyph_info[0], font_color, data, stride);
-    
     for (int i = 0; i < NUMBER_OF_TEXT_BUFFERS; i++) {
         hb_buffer_destroy(buffers[i]);
     }

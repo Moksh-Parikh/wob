@@ -14,6 +14,7 @@ project(
 add_project_arguments(
   [
     '-D_POSIX_C_SOURCE=200809L',
+    '-DHB_TINY',
     '-Wno-unused-parameter',
     '-Wno-unused-result',
     '-Wno-missing-braces',
